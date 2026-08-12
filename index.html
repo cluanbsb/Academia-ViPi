@@ -717,6 +717,7 @@
       <p class="subtitle">Catálogo dos equipamentos, cargas e repetições</p>
     </div>
     <div class="topbar-actions">
+      <button class="btn btn-ghost" id="btnChangePassword" style="display:none;">Alterar Senha</button>
       <button class="btn btn-ghost" id="btnLogout" style="display:none;">Sair</button>
       <button class="btn btn-ghost" id="btnInstall">Instalar app</button>
       <button class="btn btn-ghost" id="btnPersonalize">Personalizar</button>
@@ -776,19 +777,22 @@
    rules_version = '2';
    service cloud.firestore {
      match /databases/{database}/documents {
-       match /users/{userId}/data/{document=**} {
+       match /users/{userId} {
          allow read, write: if request.auth != null && request.auth.uid == userId;
+         match /data/{document=**} {
+           allow read, write: if request.auth != null && request.auth.uid == userId;
+         }
        }
      }
    }
    ===================================================================== */
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAJQtc0oqQUiK2JNC9IRGz-1nSxeZdclCk",
+  authDomain: "academia-vipi.firebaseapp.com",
+  projectId: "academia-vipi",
+  storageBucket: "academia-vipi.firebasestorage.app",
+  messagingSenderId: "433393246891",
+  appId: "1:433393246891:web:4546d7a3993e9e10788dee"
 };
 const firebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.apiKey !== 'YOUR_API_KEY');
 let fbAuth = null;
@@ -798,51 +802,123 @@ let currentUserUid = null;
 function translateAuthError(err){
   const code = err && err.code;
   const map = {
-    'auth/invalid-email': 'E-mail inválido.',
-    'auth/user-not-found': 'Não encontramos uma conta com esse e-mail.',
+    'auth/invalid-email': 'CPF inválido.',
+    'auth/user-not-found': 'Não encontramos uma conta com esse CPF.',
     'auth/wrong-password': 'Senha incorreta.',
-    'auth/invalid-credential': 'E-mail ou senha incorretos.',
-    'auth/email-already-in-use': 'Já existe uma conta com esse e-mail.',
+    'auth/invalid-credential': 'CPF ou senha incorretos.',
+    'auth/email-already-in-use': 'Já existe uma conta cadastrada com esse CPF.',
     'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
     'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco e tente de novo.',
-    'auth/network-request-failed': 'Falha de conexão. Verifique sua internet e tente de novo.'
+    'auth/network-request-failed': 'Falha de conexão. Verifique sua internet e tente de novo.',
+    'auth/requires-recent-login': 'Por segurança, confirme sua senha atual para continuar.'
   };
   return (code && map[code]) || (err && err.message) || 'Não foi possível completar a ação.';
+}
+
+/* ---------- CPF: formatação, validação e conversão para login no Firebase ---------- */
+function onlyDigits(str){
+  return (str || '').replace(/\D/g, '');
+}
+
+function formatCpfInput(value){
+  const d = onlyDigits(value).slice(0, 11);
+  let out = d;
+  if(d.length > 9) out = d.slice(0,3) + '.' + d.slice(3,6) + '.' + d.slice(6,9) + '-' + d.slice(9);
+  else if(d.length > 6) out = d.slice(0,3) + '.' + d.slice(3,6) + '.' + d.slice(6);
+  else if(d.length > 3) out = d.slice(0,3) + '.' + d.slice(3);
+  return out;
+}
+
+function isValidCPF(cpf){
+  const d = onlyDigits(cpf);
+  if(d.length !== 11) return false;
+  if(/^(\d)\1{10}$/.test(d)) return false;
+  let sum = 0;
+  for(let i = 0; i < 9; i++) sum += parseInt(d[i], 10) * (10 - i);
+  let check1 = 11 - (sum % 11);
+  if(check1 >= 10) check1 = 0;
+  if(check1 !== parseInt(d[9], 10)) return false;
+  sum = 0;
+  for(let i = 0; i < 10; i++) sum += parseInt(d[i], 10) * (11 - i);
+  let check2 = 11 - (sum % 11);
+  if(check2 >= 10) check2 = 0;
+  if(check2 !== parseInt(d[10], 10)) return false;
+  return true;
+}
+
+function cpfToAuthEmail(cpf){
+  return 'cpf' + onlyDigits(cpf) + '@academiavipi.local';
+}
+
+function attachCpfMask(inputEl){
+  inputEl.addEventListener('input', () => {
+    const pos = inputEl.selectionStart;
+    const before = inputEl.value.length;
+    inputEl.value = formatCpfInput(inputEl.value);
+    const after = inputEl.value.length;
+    inputEl.selectionStart = inputEl.selectionEnd = Math.max(0, pos + (after - before));
+  });
 }
 
 function renderLoginGate(mode, errorMsg, infoMsg){
   const card = document.getElementById('loginCard');
   card.innerHTML = `
     <p class="eyebrow">Ficha de Máquinas</p>
-    <h1>${mode === 'signup' ? 'Criar conta' : 'Entrar'}</h1>
+    <h1>${mode === 'signup' ? 'Cadastrar usuário' : 'Entrar'}</h1>
     ${errorMsg ? `<div class="error-banner" style="margin-bottom:16px;">${escapeHtml(errorMsg)}</div>` : ''}
     ${infoMsg ? `<div class="error-banner" style="margin-bottom:16px;background:rgba(245,197,24,.12);border-color:rgba(245,197,24,.4);color:var(--safety);">${escapeHtml(infoMsg)}</div>` : ''}
     <form id="loginForm">
       <div class="field">
-        <label>E-mail</label>
-        <input type="email" id="loginEmail" required>
+        <label>CPF</label>
+        <input type="text" id="loginCpf" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" required>
       </div>
       <div class="field">
         <label>Senha</label>
         <input type="password" id="loginPassword" required minlength="6">
       </div>
+      ${mode === 'signup' ? `
+      <div class="field">
+        <label>Confirmar senha</label>
+        <input type="password" id="loginPasswordConfirm" required minlength="6">
+      </div>` : ''}
       <button type="submit" class="btn btn-primary" style="width:100%;margin-bottom:14px;">${mode === 'signup' ? 'Criar conta' : 'Entrar'}</button>
     </form>
-    <button type="button" class="checkin-history-link" id="toggleAuthMode">${mode === 'signup' ? 'Já tenho conta — Entrar' : 'Não tenho conta — Criar conta'}</button>
-    ${mode === 'login' ? `<button type="button" class="checkin-history-link" id="forgotPassword" style="display:block;margin-top:10px;">Esqueci minha senha</button>` : ''}
+    <button type="button" class="checkin-history-link" id="toggleAuthMode">${mode === 'signup' ? 'Já tenho conta — Entrar' : 'Não tenho conta — Cadastrar usuário'}</button>
   `;
+
+  attachCpfMask(document.getElementById('loginCpf'));
 
   document.getElementById('loginForm').onsubmit = async (e) => {
     e.preventDefault();
-    const email = document.getElementById('loginEmail').value.trim();
+    const cpf = document.getElementById('loginCpf').value.trim();
     const password = document.getElementById('loginPassword').value;
     const submitBtn = e.target.querySelector('button[type="submit"]');
+
+    if(!isValidCPF(cpf)){
+      renderLoginGate(mode, 'CPF inválido. Confira os números digitados.');
+      return;
+    }
+    if(mode === 'signup'){
+      const confirmPassword = document.getElementById('loginPasswordConfirm').value;
+      if(password !== confirmPassword){
+        renderLoginGate(mode, 'As senhas digitadas não são iguais.');
+        return;
+      }
+    }
+
     submitBtn.disabled = true;
+    const authEmail = cpfToAuthEmail(cpf);
     try{
       if(mode === 'signup'){
-        await fbAuth.createUserWithEmailAndPassword(email, password);
+        const cred = await fbAuth.createUserWithEmailAndPassword(authEmail, password);
+        try{
+          await fbDb.collection('users').doc(cred.user.uid).set({
+            cpf: onlyDigits(cpf),
+            createdAt: Date.now()
+          });
+        }catch(profileErr){ /* cadastro do perfil é complementar; login já funciona sem ele */ }
       }else{
-        await fbAuth.signInWithEmailAndPassword(email, password);
+        await fbAuth.signInWithEmailAndPassword(authEmail, password);
       }
       // onAuthStateChanged cuida do resto (esconder a tela de login)
     }catch(err){
@@ -850,20 +926,67 @@ function renderLoginGate(mode, errorMsg, infoMsg){
     }
   };
   document.getElementById('toggleAuthMode').onclick = () => renderLoginGate(mode === 'signup' ? 'login' : 'signup');
-  if(mode === 'login'){
-    document.getElementById('forgotPassword').onclick = async () => {
-      const email = document.getElementById('loginEmail').value.trim();
-      if(!email){
-        renderLoginGate('login', 'Digite seu e-mail acima e toque em "Esqueci minha senha" de novo.');
-        return;
-      }
-      try{
-        await fbAuth.sendPasswordResetEmail(email);
-        renderLoginGate('login', null, 'Enviamos um link de redefinição de senha para ' + email + '.');
-      }catch(err){
-        renderLoginGate('login', translateAuthError(err));
-      }
-    };
+}
+
+function openChangePasswordModal(){
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Alterar senha</h2>
+      <form id="changePasswordForm">
+        <div class="field">
+          <label>Senha atual</label>
+          <input type="password" id="currentPasswordField" required minlength="6">
+        </div>
+        <div class="field">
+          <label>Nova senha</label>
+          <input type="password" id="newPasswordField" required minlength="6">
+        </div>
+        <div class="field">
+          <label>Confirmar nova senha</label>
+          <input type="password" id="newPasswordConfirmField" required minlength="6">
+        </div>
+        <div id="changePasswordError"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="btnCancelChangePassword">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveChangePassword">Salvar</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.onclick = (e) => { if(e.target === overlay) closeModal(); };
+  document.getElementById('btnCancelChangePassword').onclick = closeModal;
+  document.getElementById('changePasswordForm').onsubmit = handleChangePassword;
+}
+
+async function handleChangePassword(e){
+  e.preventDefault();
+  const currentPassword = document.getElementById('currentPasswordField').value;
+  const newPassword = document.getElementById('newPasswordField').value;
+  const newPasswordConfirm = document.getElementById('newPasswordConfirmField').value;
+  const errorEl = document.getElementById('changePasswordError');
+  const saveBtn = document.getElementById('btnSaveChangePassword');
+
+  if(newPassword !== newPasswordConfirm){
+    errorEl.innerHTML = `<div class="field-error">As senhas novas digitadas não são iguais.</div>`;
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Salvando…';
+  try{
+    const user = fbAuth.currentUser;
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+    closeModal();
+    showError('Senha alterada com sucesso.');
+  }catch(err){
+    errorEl.innerHTML = `<div class="field-error">${escapeHtml(translateAuthError(err))}</div>`;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Salvar';
   }
 }
 
@@ -875,6 +998,8 @@ function waitForFirebaseAuth(){
         document.getElementById('loginGate').style.display = 'none';
         document.getElementById('app').style.display = '';
         document.getElementById('btnLogout').style.display = '';
+        const changePwBtn = document.getElementById('btnChangePassword');
+        if(changePwBtn) changePwBtn.style.display = '';
         resolve();
       }else{
         currentUserUid = null;
@@ -2019,6 +2144,7 @@ document.getElementById('btnLogout').onclick = async () => {
     showError('Não foi possível sair: ' + (e && e.message ? e.message : 'erro desconhecido'));
   }
 };
+document.getElementById('btnChangePassword').onclick = () => openChangePasswordModal();
 document.querySelectorAll('#aerobicPeriodTabs .period-tab').forEach(tab => {
   tab.onclick = () => {
     currentAerobicPeriod = tab.dataset.period;
