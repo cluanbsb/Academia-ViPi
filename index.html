@@ -639,12 +639,14 @@
   .checkin-status .checkin-time{color:var(--safety);}
   .checkin-main .btn{white-space:nowrap;}
   .checkin-stats{
-    display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(76px,1fr));
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
     gap:10px;
     margin-bottom:14px;
   }
   .checkin-stat{
+    flex:1 1 76px;
     background:var(--panel-raised);
     border:1px solid var(--steel);
     border-radius:9px;
@@ -769,20 +771,19 @@
 <div id="app">
   <div class="topbar">
     <div>
-      <p class="eyebrow">Academia ViPi</p>
-      <h1>Ficha de Máquinas</h1>
+      <h1>Academia ViPi</h1>
       <p class="subtitle">Catálogo dos equipamentos, cargas e repetições</p>
     </div>
     <div class="topbar-actions">
       <div class="account-menu-wrap" id="accountMenuWrap">
         <button class="btn btn-ghost" id="btnAccountMenu">Menu ▾</button>
         <div class="account-menu" id="accountMenuDropdown" style="display:none;">
+          <button type="button" class="account-menu-item" id="menuInstall">Instalar app</button>
           <button type="button" class="account-menu-item" id="menuPersonalize">Personalizar</button>
           <button type="button" class="account-menu-item" id="menuChangePassword" style="display:none;">Alterar Senha</button>
           <button type="button" class="account-menu-item account-menu-item-danger" id="menuLogout" style="display:none;">Sair</button>
         </div>
       </div>
-      <button class="btn btn-ghost" id="btnInstall">Instalar app</button>
       <button class="btn btn-primary" id="btnNew">+ Novo equipamento</button>
     </div>
   </div>
@@ -808,10 +809,6 @@
         </div>
         <button class="btn btn-primary" id="btnAerobic">Registrar Aeróbico</button>
       </div>
-      <div class="period-tabs" id="aerobicPeriodTabs">
-        <button type="button" class="period-tab active" data-period="day">Hoje</button>
-        <button type="button" class="period-tab" data-period="week">Semana</button>
-      <button type="button" class="period-tab" data-period="month">Mês</button>
       <div class="period-tabs" id="aerobicPeriodTabs">
         <button type="button" class="period-tab active" data-period="day">Hoje</button>
         <button type="button" class="period-tab" data-period="week">Semana</button>
@@ -2194,7 +2191,6 @@ async function deleteEquipment(id){
 }
 
 document.getElementById('btnNew').onclick = () => openModal();
-document.getElementById('btnInstall').onclick = () => openInstallModal();
 document.getElementById('btnCheckin').onclick = () => registerCheckin();
 document.getElementById('btnCheckinHistory').onclick = () => openCheckinHistoryModal();
 document.getElementById('btnAerobic').onclick = () => openAerobicModal();
@@ -2210,6 +2206,10 @@ document.addEventListener('click', (e) => {
     accountMenuDropdown.style.display = 'none';
   }
 });
+document.getElementById('menuInstall').onclick = () => {
+  accountMenuDropdown.style.display = 'none';
+  openInstallModal();
+};
 document.getElementById('menuPersonalize').onclick = () => {
   accountMenuDropdown.style.display = 'none';
   openPersonalizeModal();
