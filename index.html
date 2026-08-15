@@ -336,6 +336,18 @@
     color:var(--muted);
     line-height:1.4;
   }
+  .card-video-link{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--safety);
+    text-decoration:none;
+    padding:8px 0;
+  }
+  .card-video-link:hover{text-decoration:underline;}
+  .card-video-link svg{width:15px;height:15px;flex-shrink:0;}
   .card-actions{
     display:flex;
     gap:8px;
@@ -410,6 +422,10 @@
   }
   .field input[type="text"],
   .field input[type="number"],
+  .field input[type="url"],
+  .field input[type="date"],
+  .field input[type="email"],
+  .field input[type="password"],
   .field select,
   .field textarea{
     width:100%;
@@ -422,6 +438,7 @@
     font-size:14.5px;
     outline:none;
   }
+  .field input[type="date"]{color-scheme:dark;}
   .field select{appearance:none;-webkit-appearance:none;
     background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23948E82" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>');
     background-repeat:no-repeat;
@@ -2253,6 +2270,11 @@ function cardTemplate(item){
           </div>
         </div>
         ${item.notes ? `<div class="card-notes">${escapeHtml(item.notes)}</div>` : ''}
+        ${item.videoLink ? `
+        <a class="card-video-link" href="${escapeHtml(item.videoLink)}" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><path d="M9.75 15.02 15.5 11.75 9.75 8.48z"/></svg>
+          Ver vídeo no YouTube
+        </a>` : ''}
         <div class="card-actions">
           <button class="btn btn-ghost" onclick="openModal('${item.id}')">Editar</button>
           <button class="btn btn-danger" onclick="deleteEquipment('${item.id}')">Excluir</button>
@@ -2318,6 +2340,10 @@ function openModal(id = null){
             <label>Peso (kg)</label>
             <input type="number" min="0" step="any" id="fieldWeight" placeholder="Ex: 40,5" value="${item ? escapeHtml(item.weight) : ''}">
           </div>
+        </div>
+        <div class="field">
+          <label>Link (vídeo do YouTube, opcional)</label>
+          <input type="url" id="fieldVideoLink" placeholder="https://www.youtube.com/watch?v=..." value="${item ? escapeHtml(item.videoLink || '') : ''}">
         </div>
         <div class="field">
           <label>Observações (opcional)</label>
@@ -2395,11 +2421,16 @@ async function handleSave(e){
   const sets = document.getElementById('fieldSets').value.trim();
   const reps = document.getElementById('fieldReps').value.trim();
   const weight = document.getElementById('fieldWeight').value.trim();
+  const videoLink = document.getElementById('fieldVideoLink').value.trim();
   const notes = document.getElementById('fieldNotes').value.trim();
   const errorEl = document.getElementById('formError');
 
   if(!name || !machineId){
     errorEl.innerHTML = `<div class="field-error">Preencha ao menos o nome e o número de identificação.</div>`;
+    return;
+  }
+  if(videoLink && !/^https?:\/\//i.test(videoLink)){
+    errorEl.innerHTML = `<div class="field-error">O link precisa começar com http:// ou https:// (cole o endereço completo do vídeo).</div>`;
     return;
   }
 
@@ -2409,7 +2440,7 @@ async function handleSave(e){
 
   const id = editingId || (Date.now() + '-' + Math.random().toString(36).slice(2,8));
   const data = {
-    id, name, machineId, category, sets, reps, weight, notes,
+    id, name, machineId, category, sets, reps, weight, videoLink, notes,
     photo: photoDataUrl,
     createdAt: editingId ? (equipmentList.find(x=>x.id===editingId)?.createdAt || Date.now()) : Date.now()
   };
